@@ -1,103 +1,139 @@
-import Image from "next/image";
+
+"use client";
+import { useState, useEffect } from "react";
+import PromptForm from "./client/components/PromptForm";
+import CodeEditor from "./client/components/CodeEditor";
+import { useUser } from "@clerk/nextjs";
+import { FileMap } from "../app/shared/types";
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const { user } = useUser();
+  const [codeFiles, setCodeFiles] = useState<FileMap | null>(null);
+  const [customDomain, setCustomDomain] = useState("");
+  const [prompt, setPrompt] = useState("");
+  const [stack, setStack] = useState("nextjs-tailwind");
+  const [deployedUrl, setDeployedUrl] = useState<string | null>(null);
+  const [projectId, setProjectId] = useState<string | null>(null);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+  useEffect(() => {
+    if (!user || !projectId) return;
+    fetch(`/server/api/project?id=${projectId}&uid=${user.id}`)
+      .then((res) => res.json())
+      .then((data) => {
+        setCodeFiles(data.files);
+        setPrompt(data.prompt);
+        setStack(data.stack);
+        setCustomDomain(data.domain || "");
+        setDeployedUrl(data.url);
+      });
+  }, [projectId, user]);
+
+  const handleSubmit = async (input: { prompt: string; stack: string }) => {
+    setPrompt(input.prompt);
+    setStack(input.stack);
+    const res = await fetch("/server/api/generate", {
+      method: "POST",
+      body: JSON.stringify(input),
+      headers: { "Content-Type": "application/json" },
+    });
+    const data = await res.json();
+    setCodeFiles(data.files);
+  };
+
+  const handleDeploy = async (files: FileMap) => {
+    const res = await fetch("/server/api/deploy", {
+      method: "POST",
+      body: JSON.stringify({
+        files,
+        domain: customDomain,
+        uid: user?.id,
+        prompt,
+        stack,
+        projectId,
+      }),
+      headers: { "Content-Type": "application/json" },
+    });
+    const data = await res.json();
+    setDeployedUrl(data.url);
+    setProjectId(data.projectId);
+    alert("Your site is live at: " + data.url);
+  };
+
+  const handleEditProject = async (id: string) => {
+    setProjectId(id);
+  };
+
+  return (
+    <main className="max-w-4xl mx-auto py-10 px-4">
+      <h1 className="text-3xl font-bold mb-6">AI Website Generator</h1>
+      {user && <p className="mb-4 text-sm text-gray-600">Logged in as {user.emailAddresses[0].emailAddress}</p>}
+
+      <section className="mb-10">
+        <h2 className="text-xl font-semibold mb-4">Your Projects</h2>
+        <ul id="project-list" className="space-y-3"></ul>
+        {user && (
+          <button
+            className="bg-gray-800 text-white px-4 py-2 rounded mt-2"
+            onClick={async () => {
+              const res = await fetch(`/server/api/sites?uid=${user.id}`);
+              const data = await res.json();
+              const list = document.getElementById("project-list");
+              if (list) {
+                list.innerHTML = data
+                  .map(
+                    (p: { prompt: string; url: string; id: string }) => `
+                  <li class="border p-2 rounded">
+                    <p><b>${p.prompt}</b></p>
+                    <p><a class="text-blue-500" href="${p.url}" target="_blank">${p.url}</a></p>
+                    <button class="bg-indigo-600 mt-2 px-3 py-1 text-white rounded" onclick="window.handleEdit('${p.id}')">Edit</button>
+                  </li>
+                `
+                  )
+                  .join("");
+              }
+              // @ts-ignore
+              window.handleEdit = handleEditProject;
+            }}
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
+            Load Projects
+          </button>
+        )}
+      </section>
+
+      {!codeFiles ? (
+        <PromptForm onSubmit={handleSubmit} />
+      ) : (
+        <>
+          <label className="block mb-2 mt-6">
+            Custom Domain (optional):
+            <input
+              type="text"
+              placeholder="yourdomain.com"
+              className="w-full mt-1 border p-2 rounded"
+              value={customDomain}
+              onChange={(e) => setCustomDomain(e.target.value)}
             />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
+          </label>
+          <CodeEditor
+            files={codeFiles}
+            onDeploy={handleDeploy}
+            projectId={projectId}
+            autosave={true}
           />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+
+          {deployedUrl && (
+            <div className="mt-8">
+              <h2 className="text-xl font-semibold mb-2">Live Preview</h2>
+              <iframe
+                src={deployedUrl}
+                className="w-full h-[600px] border rounded"
+                title="Live Preview"
+              ></iframe>
+            </div>
+          )}
+        </>
+      )}
+    </main>
   );
 }
+
