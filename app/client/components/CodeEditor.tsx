@@ -22,19 +22,19 @@ export default function CodeEditor({ files, onDeploy, projectId, autosave }: Cod
           body: JSON.stringify({ projectId, files: localFiles }),
           headers: { "Content-Type": "application/json" },
         });
-      }, 1000);
+      }, 500);
       return () => clearTimeout(timeout);
     }
   }, [localFiles, projectId, autosave]);
 
   return (
-    <div>
-      <div className="flex space-x-2 overflow-x-auto mb-2">
+    <div className="border rounded-lg overflow-hidden shadow-md">
+      <div className="bg-gray-100 p-2 flex space-x-2 border-b">
         {Object.keys(localFiles).map((file) => (
           <button
             key={file}
-            className={`px-3 py-1 rounded ${
-              file === activeFile ? "bg-indigo-600 text-white" : "bg-gray-200"
+            className={`px-3 py-1 rounded-md text-sm ${
+              file === activeFile ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-700"
             }`}
             onClick={() => setActiveFile(file)}
           >
@@ -44,22 +44,23 @@ export default function CodeEditor({ files, onDeploy, projectId, autosave }: Cod
       </div>
 
       <Editor
-        height="500px"
+        height="400px"
         defaultLanguage="javascript"
         value={localFiles[activeFile]}
-        onChange={(value) => {
-          if (value) {
-            setLocalFiles({ ...localFiles, [activeFile]: value });
-          }
+        onChange={(val) => {
+          if (val !== undefined) setLocalFiles({ ...localFiles, [activeFile]: val });
         }}
+        className="border-b"
       />
 
-      <button
-        className="mt-4 bg-green-600 text-white px-4 py-2 rounded"
-        onClick={() => onDeploy(localFiles)}
-      >
-        Deploy Site
-      </button>
+      <div className="p-4 flex justify-end bg-white space-x-2">
+        <button
+          className="px-4 py-2 bg-green-600 text-white rounded-md shadow hover:bg-green-700 transition"
+          onClick={() => onDeploy(localFiles)}
+        >
+          Deploy Site
+        </button>
+      </div>
     </div>
   );
 }

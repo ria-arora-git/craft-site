@@ -64,7 +64,7 @@ export default function Home() {
   };
 
   return (
-    <main className="max-w-4xl mx-auto py-10 px-4">
+    <main className="max-w-4xl mx-auto py-10 px-4 bg-white">
       <h1 className="text-3xl font-bold mb-6">AI Website Generator</h1>
       {user && <p className="mb-4 text-sm text-gray-600">Logged in as {user.emailAddresses[0].emailAddress}</p>}
 
